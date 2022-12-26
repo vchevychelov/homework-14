@@ -35,8 +35,19 @@ resource "yandex_compute_instance" "vm-1" {
   metadata = {
     user-data = "root:${file("/opt/terraform/meta.txt")}"
   }
-}
 
+  provisioner "remote-exec" {
+
+  inline = [
+  "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y",
+  "sudo apt install -y openjdk11 && sudo apt install -y maven && sudo apt install -y git",
+  "git clone https://github.com/vchevychelov/boxfuse.git",
+  "cd /boxfuse-sample-java-war-hello/",
+  "mvn package",
+  "git push origin main",
+  ]
+  }
+}
 resource "yandex_compute_instance" "vm-2" {
   name = "terraform2"
 
@@ -58,6 +69,16 @@ resource "yandex_compute_instance" "vm-2" {
 
   metadata = {
     user-data = "root:${file("/opt/terraform/meta.txt")}"
+  }
+
+  provisioner "remote-exec" {
+
+  inline = [
+  "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y",
+  "sudo apt install -y openjdk11 && sudo apt install -y tomcat9 && sudo apt install -y git",
+  "git clone https://github.com/vchevychelov/boxfuse.git",
+  "sudo cp /boxfuse-sample-java-war-hello/target/hello-1.0.war /usr/local/tomcat/webapps/",
+  ]
   }
 }
 
