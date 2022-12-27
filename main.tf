@@ -6,6 +6,16 @@ terraform {
   }
 }
 
+variable "private_key_path" {
+  description = "Path to ssh private key, which would be used to access workers"
+  default     = "~/.ssh/id_rsa"
+}
+
+variable "public_key_path" {
+  description = "Path to ssh public key, which would be used to access workers"
+  default     = "~/.ssh/id_rsa.pub"
+}
+
 provider "yandex" {
   token     = "y0_AgAAAABnXmIqAATuwQAAAADXy1FTRNMoi3GvREGW3UmJRHw9t7fOLUo"
   cloud_id  = "myyacloud"
@@ -33,19 +43,31 @@ resource "yandex_compute_instance" "vm-1" {
   }
 
   metadata = {
-    user-data = "root:${file("/opt/terraform/meta.txt")}"
+    user-data = "ubuntu:${file("/opt/terraform/meta.yml")}"
+    ssh-keys  = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
 
   provisioner "remote-exec" {
 
-  inline = [
-  "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y",
-  "sudo apt install -y openjdk11 && sudo apt install -y maven && sudo apt install -y git",
-  "git clone https://github.com/vchevychelov/boxfuse.git",
-  "cd /boxfuse-sample-java-war-hello/",
-  "mvn package",
-  "git push origin main",
-  ]
+    inline = [
+      "sudo apt update",
+      "sudo DEBIAN_FRONTEND=noninteractive apt -y install default-jdk",
+      "sudo DEBIAN_FRONTEND=noninteractive apt -y install maven",
+      "sudo apt -y install git",
+      "cd ~/",
+      "git clone https://github.com/vchevychelov/boxfuse.git",
+      "cd  boxfuse/",
+      "mvn package",
+      "git init && cp ./target/hello-1.0.war ./ && git add --all && git commit -m \"add war\"",
+      "git push https://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@github.com/vchevychelov/boxfuse.git",
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.private_key_path)
+      host        = self.network_interface[0].nat_ip_address
+    }
   }
 }
 resource "yandex_compute_instance" "vm-2" {
@@ -68,18 +90,32 @@ resource "yandex_compute_instance" "vm-2" {
   }
 
   metadata = {
-    user-data = "root:${file("/opt/terraform/meta.txt")}"
+    user-data = "ubuntu:${file("/opt/terraform/meta.txt")}"
+    ssh-keys  = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
 
   provisioner "remote-exec" {
 
-  inline = [
-  "sudo apt update && sudo DEBIAN_FRONTEND=noninteractive apt upgrade -y",
-  "sudo apt install -y openjdk11 && sudo apt install -y tomcat9 && sudo apt install -y git",
-  "git clone https://github.com/vchevychelov/boxfuse.git",
-  "sudo cp /boxfuse-sample-java-war-hello/target/hello-1.0.war /usr/local/tomcat/webapps/",
-  ]
+    inline = [
+      "sudo apt update",
+      "sudo apt -y install default-jdk",
+      "sudo apt -y install tomcat9",
+      "sudo apt -y install git",
+      "cd ~/",
+      "git clone https://github.com/vchevychelov/boxfuse.git",
+      "sudo cp ./boxfuse/hello-1.0.war /var/lib/tomcat9/webapps/",
+    ]
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file(var.private_key_path)
+      host        = self.network_interface[0].nat_ip_address
+    }
   }
+  depends_on = [
+    yandex_compute_instance.vm-1
+  ]
 }
 
 resource "yandex_vpc_network" "network-1" {
@@ -109,3 +145,5 @@ output "external_ip_address_vm_1" {
 output "external_ip_address_vm_2" {
   value = yandex_compute_instance.vm-2.network_interface.0.nat_ip_address
 }
+
+
